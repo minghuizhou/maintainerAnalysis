@@ -1,0 +1,57 @@
+<html>
+<body>
+
+Note -- Measuring maintainers in the Linux kernel
+
+<h2> Measuring how maintainers spend their precious time in the Linux kernel</h2>
+
+<table>
+
+<tr><th>ratio of yearly#authors over monthly#maintainers (r3,c1)</th><th>ratio of monthly#authors over monthly#maintainers</th></tr>
+<tr><td><img src="Ayearly2Mmonthly.png"></td><td><img src="Amonthly2Mmonthly.png"></td></tr>
+
+<tr><th>median adjusted #files maintained per maintainer over years </th><th>mean adjusted #files maintained per maintainer over years</th></tr>
+<tr><td><img src="nf8yrMEDIAN_mtrm2.png"></td><td><img src="nf8yrMEAN_mtrm2.png"></td></tr>
+
+<tr><th>median adjusted #authors on maintained files of a maintainer over natural years</th><th>mean adjusted #authors on maintained files of a maintainer over natural years</th></tr>
+<tr><td><img src="natr8yrMEDIAN_mtrm2.png"></td><td><img src="natr8yrMEAN_mtrm2.png"></td></tr>
+
+<tr><th>median adjusted #commits on maintained files of a maintainer over natural years (r6,c1)</th><th>mean adjusted #commits on maintained files of a maintainer over natural years</th></tr>
+<tr><td><img src="ncmt8yrMEDIAN_mtrm2.png"></td><td><img src="ncmt8yrMEAN_mtrm2.png"></td></tr>
+
+<tr><th>#commits maintained over natural years (mod0)</th><th>#authors on maintained files over natural years (mod0)</th><th>#files on maintained files over natural years (mod0)</th><th>#maintainers over natural years (mod0)</th><th>#joiners over natural years (mod0)</th></tr>
+<tr><td><img src="ncommit4mod0.png"></td><td><img src="nauthor4mod0.png"></td><td><img src="nf4mod0.png"></td><td><img src="nmtr4mod0.png"></td><td><img src="njoiner4mod0.png"></td></tr>
+
+<tr><th>fraction of maintainers who are responsible for 80% of files in that module</th><th>fraction of maintainers who are responsible for 80% of commits in that module</th><th>fraction of maintainers who are responsible for 80% of authors in that module</th></tr>
+<tr><td><img src="topmtr80file0.png"></td><td><img src="topmtr80cmt0.png"></td><td><img src="topmtr80atr0.png"></td></tr>
+
+<!--
+<tr><th>#files maintained over natural years (mod0)</th><th>#files maintained over natural years (mod)</th><th>#authors on maintained files over natural years (mod0)</th><th>#authors on maintained files over natural years (mod)</th><th>#commits on maintained files over natural years (mod0)</th><th>#commits on maintained files over natural years (mod)</th><th>#maintainers over natural years (mod0)</th><th>#maintainers over natural years (mod)</th></tr>
+<tr><td><img src="nf4mod0.png"></td><td><img src="nf4mod.png"></td><td><img src="nauthor4mod0.png"></td><td><img src="nauthor4mod.png"></td><td><img src="ncommit4mod0.png"></td><td><img src="ncommit4mod.png"></td><td><img src="nmtr4mod0.png"></td><td><img src="nmtr4mod.png"></td></tr>
+
+
+<tr><th>number of maintainers over month based on maintainer's module (r1,c1)</th><th>number of authors over years</th><th>number of authors over months </th><th>number of joiners over years</th><th>number of joiners over months</th></tr>
+<tr><td><img src="mtr8month_mtrmod.png"></td><td><img src="author8year_mtrmod.png"></td><td><img src="author8month_mtrmod.png"></td><td><img src="joiner8year_mtrmod.png"></td><td><img src="joiner8month_mtrmod.png"></td></tr>
+
+<tr><th>number of commits over years on maintainer's module</th><th>number of touched files over years on maintainer's module</th><th>number of added lines over years on maintainer's module</th><th>number of deleted lines over years on maintainer's module</th></tr>
+<tr><td><img src="commit8year_mtrmod.png"></td><td><img src="touchedfile_mtrmod.png"></td><td><img src="addedline_mtrmod.png"><td><img src="deletedline_mtrmod.png"></td></tr>
+
+
+<tr><th>median #commits a maintainer did on maintained files over natural years (r7,c1) </th><th>mean #commits a maintainer did on maintained files over natural years (chgmtr)</th><th>median tenure of authors over natural year (chgmtr)</th><th>mean tenure of authors over natural year (chgmtr)</th></tr>
+<tr><td><img src="mtrcmtMEDIAN.png"></td><td><img src="mtrcmtMEAN.png"></td><td><img src="atrtenureMEDIAN.png"></td><td><img src="atrtenureMEAN.png"></td></tr>
+
+<tr><th>(median) fraction of changed files over maintained files (per maintainer) in different modules (r8,c1)</th><th>(mean) fraction of changed files over maintained files (per maintainer) in different modules</th><th>fraction of ALL changed files over ALL maintained files in different modules</th></tr>
+<tr><td><img src="chgdfileFracMEDIAN0.png"></td><td><img src="chgdfileFracMEAN0.png"></td><td><img src="chgdfileFrac0.png"></td></tr>
+
+<tr><th>#files on maintained files of a maintainer over tenure</th><th>gam(log(ncmt) ~ mod+l+s(nm)++fracchgf+fracjoiner+log(nsub+1)+log(nf_sup+1))</th><th>#authors on maintained files of a maintainer over tenure</th></tr>
+<tr><td><img src="modelnf.png"></td><td><img src="modelncmt.png"></td><td><img src="modelnatr.png"></td></tr>
+
+<tr><th>#commits on the maintained files made by the maintainer in a month: gam(log(ncmt_mtr+1) ~ mod+l+s(nm)+fracchgf+fracjoiner+log(nf_sup+1))</th><th>#commits made by a maintainer overall in a month: gam(log(ncmt_atrd+1)~...)</th><th>#commits on the maintained files made by other maintainers in a month: gam(log(ncmt_otrmtr+1)~...)</th><th>#commits on the maintained files made by pure authors in a month: gam(log(ncmt_atr+1)~...)</tr>
+<tr><td><img src="modelncmt_onownfile.png"></td><td><img src="modelncmt_ownall.png"></td><td><img src="modelncmt_otrmtr.png"></td><td><img src="modelncmt_atr.png"></td></tr>
+-->
+
+</table>
+
+</body>
+</html>
+
