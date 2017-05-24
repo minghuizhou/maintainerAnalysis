@@ -1,0 +1,367 @@
+#+begin_src sh :dir dad2:/fast/linux
+git clone git://git.kernel.org/pub/scm/linux/kernel/git/torvalds/linux.git linux
+git log --all --numstat -M -C --full-history --pretty=tformat:"STARTOFTHECOMMIT:linux%n%H;%T;%P;%an;%ae;%at;%cn;%ce;%ct;%s%n%b%nNOTES%N" | gzip > /data/linux/linux.log.gz
+gunzip -c /data/linux/linux.log.gz | perl ~/bin/extrgitPlog.perl | gzip > /data/linux/linux.delta.gz
+gunzip -c /data/linux/linux.delta.gz | grep ';MAINTAINERS;' | sort -t\; -k10 -n > /data/linux/MAINTAINERS.delta
+#+end_src
+
+#+begin_src R dir: /ssh:audris@dad2:/data/linux
+library(zoo);
+x = read.table("MAINTAINERS.delta",sep=";",comment.char="", quote="");
+x$V10 <- format(as.yearmon(as.POSIXct(x$V10, origin='1970-1-1')), '%Y.%m');
+x$V11 <- format(as.yearmon(as.POSIXct(x$V11, origin='1970-1-1')), '%Y.%m');
+write.table(x,file="MAINTAINERS.delta.1",sep=";", quote=F);
+#+end_src
+
+#+begin_src sh :dir /ssh:audris@dad2:/data/linux/
+cut -d\; -f3,11,12 /data/shared/linux/MAINTAINERS.delta.1  | awk -F\; '{ if ($2>m) {print h";"m};h=$1;m=$2}END{print h";"m}' > /data/shared/linux/MAINTAINERS.delta.m
+cat /data/shared/linux/MAINTAINERS.delta.m | grep -v '^;$' | while IFS=\; read h m
+do git checkout --force $h
+   find . -type f | sed 's|^\./||' | grep -v '^\.git/' | gzip >  /data/MAINTAINERS.$h.$m.files.gz
+   FF=scripts/get_maintainer.pl
+   [[ -f $FF ]] && gunzip -c /data/MAINTAINERS.$h.$m.files.gz | while read f
+      do echo "$f;$m;"$($FF -f $f|perl -ane 's/;/SEMICOLON/g;s/\n/;/g;print')
+      done 
+done | gzip > /data/shared/linux/MAINTAINERS.mtr.gz 
+#+end_src
+
+
+
+#+begin_src R dir: /ssh:audris@dad2:/data/linux/
+library(zoo);
+x = read.table("linux.delta.gz",sep=";",comment.char="", quote="",
+col.names=c("prj", "v","tree","parent","an","cn","ae","ce","nadd","at","ct",
+ "f","msg"),colClasses=c(rep("character",12)));
+x$at[x$at < min(x$ct)] <- x$ct[x$at < min(x$ct)];
+x$at <- format(as.yearmon(as.POSIXct(as.integer(x$at), origin='1970-1-1')), '%Y.%m');
+x$ct <- format(as.yearmon(as.POSIXct(as.integer(x$ct), origin='1970-1-1')), '%Y.%m');
+write.table(x[,c("f","v","an","ae","at","ct","nadd","msg")],"delta",sep=";", quote=F, row.names=F,col.names=F);
+#+end_src
+
+
+
+#+begin_src sh dir: /ssh:audris@dad2:/data/linux
+gunzip -c linux.delta.1.gz > delta
+#+end_src
+
+#+begin_src perl dir: /ssh:audris@dad2:/data/linux
+use strict;
+use warnings;
+my (%mtr, %mod, %m2mod, %m2mod1, %moda, %modSC, %modSCInv);
+open A, "mtr1";
+while(<A>){
+  chop();
+  my ($f, $y, $nm, $m) = split(/\;/, $_, -1);
+  $m =~ tr/[A-Z]/[a-z]/;
+  my $md = getMod ($f);
+  my $y1 = $y; #$y1 =~ s/\.[0-9][0-9]$//;
+  $mtr{$f}{$y}{$m}++;
+  $mod{$y1}{$m}{$md}++;
+  $modSC{$y1}{$m}{$md}{$nm}++;
+  #$modSCInv{$y1}{$m}{$md}+=1.0/$nm if $nm > 0;
+  $moda{$y1}{$m}++;
+}
+close (A);
+
+sub getMod {
+  my $f = $_[0];
+  my @fs = split (/\//, $f, -1);
+  $fs[0] = "other" if ($fs[0] =~ /^(include|lib|init|ipc|certs|samples|usr|virt|firmware|dir.c|ret.ou)$/ || $fs[0] =~ /^(\.|[CKMR]|\{)/ || $fs[0] eq "");
+  $fs[0];
+}
+
+open B, ">mtr2mod";
+open C, ">mtr2mod1";
+for my $y1 (keys %mod){
+  for my $m (keys %{$mod{$y1}}){
+    my @md = sort { $mod{$y1}{$m}{$b}/$mod{$y1}{$m}{$b} <=> $mod{$y1}{$m}{$a}/$mod{$y1}{$m}{$a} } (keys %{$mod{$y1}{$m}});
+    my %good;
+    my $tot = 0;
+    my $tot1 = 0;
+    for my $mm (@md){
+       $tot += $mod{$y1}{$m}{$mm};
+       if ($mm !~ /^(Documentation|other)$/){
+         $good{$mm} = $mod{$y1}{$m}{$mm};
+         $m2mod1{$y1}{$m}{$mm} = $mod{$y1}{$m}{$mm};
+         $tot1 += $mod{$y1}{$m}{$mm};
+       }
+    }
+    my @md1 = sort { $good{$b} <=> $good{$a} } (keys %good);
+    if ($#md1 >=0 ){
+      $m2mod{$y1}{$m} = $md1[0];
+      for my $mm (@md1){
+         $m2mod1{$y1}{$m}{$mm} = ($tot+0.0)/$tot1 * $mod{$y1}{$m}{$mm}/$tot1;
+         print C "$y1;$m;$mm;$m2mod1{$y1}{$m}{$mm};$tot\n";
+      }
+    }else{
+      if ($md[0] =~ /^Documentation$/){
+        $m2mod{$y1}{$m} = $md[0];
+        $m2mod1{$y1}{$m}{$md[0]} = 1;
+        print C "$y1;$m;$md[0];1;$tot\n";
+      }else{
+        $m2mod{$y1}{$m} = "other";
+        #print C "$y1;$m;other;0;$tot\n";
+      }
+    }
+    for my $mm (@md){
+      my $scale1 = 1;
+      $scale1 = $m2mod1{$y1}{$m}{$mm} if defined $m2mod1{$y1}{$m}{$mm};
+      #print B "$y1;$m;$mm;".(scalar(@md)).";$mod{$y1}{$m}{$mm};$modSC{$y1}{$m}{$mm};$modSCInv{$y1}{$m}{$mm};$tot\;$tot1\;$m2mod{$y1}{$m};$scale1\n";
+      for my $nm (keys %{ $modSC{$y1}{$m}{$mm} }){           
+        print B "$nm;$y1;$m;$mm;".(scalar(@md)).";$modSC{$y1}{$m}{$mm}{$nm};$tot;$tot1\;$m2mod{$y1}{$m}\n";
+      }
+    }
+  }
+}
+close B;
+
+open B, ">mtr2";
+open A, "mtr1";
+while(<A>){
+  chop();
+  my ($f, $y, $nm, $m) = split(/\;/, $_, -1);
+  $m =~ tr/[A-Z]/[a-z]/;
+  my $y1 = $y; #$y1 =~ s/\.[0-9][0-9]$//;
+  my $mod0 = getMod ($f);
+  my $w = 1;
+  $w = $m2mod1{$y1}{$m}{$mod0} if defined $m2mod1{$y1}{$m}{$mod0};
+  print B "$f;$mod0;$m2mod{$y1}{$m};$w;$y;$nm;$m\n";
+}        
+close (B);
+     
+open A, "delta";
+open B, ">delta1";
+while(<A>){
+  chop();
+  my ($f, $v, $a, $ae, $ya, $yc, @rest) = split(/\;/, $_, -1);
+  next if $f =~ /\=\>/;
+  my @ms = keys %{$mtr{$f}{$yc}};
+  my $nm=$#ms+1;
+  my $y1 = $yc; #$y1 =~ s/\.[0-9][0-9]$//;
+  my $mod0 = getMod ($f);
+  next if !defined $m2mod{$y1};
+  for my $m (@ms){
+    print B "$m;$nm;$f;$v;$mod0;$m2mod{$y1}{$m};$a;$ae;$ya;$yc;".(join ';', @rest)."\n";
+  } 
+  my @fs = split (/\//, $f, -1);
+  print B "torvalds\;0\;$f\;$v\;$mod0;$mod0;$a;$ae;$ya;$yc;".(join ';', @rest)."\n" if ($nm==0 && $f ne "")  
+}
+
+#+end_src
+
+
+
+#+begin_src R dir: /ssh:audris@dad2:/data/linux
+#+begin_src R dir: /ssh:audris@dad2:/data/linux
+m2m = read.table("mtr2mod",sep=";",comment.char="", quote="",
+  col.names=c("nmtr","y","m","mod","nm","nf", "ntotf","ntotgf","topMod"));
+#  col.names=c("y","m","mod","nm","nf","nmtr","nmtrInv", "ntotf","ntotgf","topmod","frac"));
+m2m = m2m[m2m$mod != "other",]
+m2m = m2m[m2m$mod != "Documentation",]
+m2m = m2m[m2m$nmtr>0,];
+m2m$topMod=as.factor(as.character(m2m$topMod))
+m2m$key = paste(m2m$y,m2m$m,sep=";");
+first = function (x)x[1];
+mod<-tapply(as.character(m2m$topMod),m2m$key,first);
+nf <- tapply(m2m$nf,m2m$key,sum);
+nmtr <- tapply(m2m$nmtr*m2m$nf,m2m$key,sum);
+nfAdj<-tapply(m2m$nf/m2m$nmtr,m2m$key,sum);
+m = sub("[^;]*;","",names(table(m2m$key)))
+fracGood = tapply(m2m$ntotgf/m2m$ntotf,m2m$key,first);
+key=names(table(m2m$key))
+
+#lets do spread calculation
+priMod = c("drivers", "arch", "fs","net","sound", "kernel", "mm");
+m2m1 = m2m[match(m2m$mod, priMod, nomatch=0)>0,];
+z=tapply(m2m1$nf,list(as.character(m2m1$mod), as.character(m2m1$m)),sum);
+#z0=tapply(m2m1$nfAdj,list(as.character(m2m1$mod), as.character(m2m1$m)),sum);
+z[is.na(z)] = 0;
+z0[is.na(z0)] = 0;
+z1=z; z1[z>0] = 1;
+z2 = apply(z1,2,sum);
+z3 = apply(z,2,max);
+res = c();
+for (mod in priMod){
+  ind = z1[mod,]>0
+  mtm = names(z3[ind][z3[ind]==z[mod,ind]]);
+  #mtmA = names(z3[ind][z3[ind]==z0[mod,ind]]);
+  mt0 = dimnames(z1[,ind])[[2]];
+  a = length(mtm);
+  b = length(mt0);
+  c = sum(z2[match(names(z2),mtm,nomatch=0)>0]>1);
+  d = sum(z2[match(names(z2),mt0,nomatch=0)>0]>1);
+  #aA = length(mtmA);
+  #cA = sum(z2[match(names(z2),mtmA,nomatch=0)>0]>1);
+  res = cbind(res,c(a,b,c,d,c/a,d/b,a/b));
+}
+colnames(res)= priMod;
+round(res,2)
+#a - maintainers who have the most files maintained for that module (in comparison to other modules
+#b - maintainers who ever maintained a file in that module
+#c subset of a that has more than one module
+#d subset of b that has more than one module
+priMod = c("drivers", "arch", "fs","net","sound", "kernel", "mm");
+m2m1 = m2m[match(m2m$mod, priMod, nomatch=0)>0,];
+z=tapply(m2m1$nf,list(as.character(m2m1$mod), as.character(m2m1$m)),sum);
+#z0=tapply(m2m1$nfAdj,list(as.character(m2m1$mod), as.character(m2m1$m)),sum);
+z[is.na(z)] = 0;
+z0[is.na(z0)] = 0;
+z1=z; z1[z>0] = 1;
+z2 = apply(z1,2,sum);
+z3 = apply(z,2,max);
+res = c();
+for (mod in priMod){
+  ind = z1[mod,]>0
+  mtm = names(z3[ind][z3[ind]==z[mod,ind]]);
+  #mtmA = names(z3[ind][z3[ind]==z0[mod,ind]]);
+  mt0 = dimnames(z1[,ind])[[2]];
+  a = length(mtm);
+  b = length(mt0);
+  c = sum(z2[match(names(z2),mtm,nomatch=0)>0]>1);
+  d = sum(z2[match(names(z2),mt0,nomatch=0)>0]>1);
+  #aA = length(mtmA);
+  #cA = sum(z2[match(names(z2),mtmA,nomatch=0)>0]>1);
+  res = cbind(res,c(a,b,c,d,c/a,d/b,a/b));
+}
+colnames(res)= priMod;
+round(res,2)
+
+#commercial supoort
+cSup = c(366,61,24,14,10,20,0);
+round(cSup/res[1,],2)
+round(cSup/res[2,],2)
+
+
+#effort scaling
+summary(lm(log(nfAdj)~log(nmtr/nf)));
+Coefficients:
+             Estimate Std. Error t value Pr(>|t|)    
+(Intercept)   2.30765    0.01486   155.3   <2e-16 ***
+log(nmtr/nf) -0.44755    0.01407   -31.8   <2e-16 ***
+Residual standard error: 1.929 on 68433 degrees of freedom
+Multiple R-squared:  0.01457,   Adjusted R-squared:  0.01455 
+F-statistic:  1012 on 1 and 68433 DF,  p-value: < 2.2e-16
+
+summary(lm(log(nfAdj)~log(nmtr/nf)+fracGood));
+             Estimate Std. Error t value Pr(>|t|)    
+(Intercept)   0.55944    0.04034   13.87   <2e-16 ***
+log(nmtr/nf) -0.48275    0.01388  -34.79   <2e-16 ***
+fracGood      1.98419    0.04267   46.50   <2e-16 ***
+Residual standard error: 1.899 on 68432 degrees of freedom
+Multiple R-squared:  0.04475,   Adjusted R-squared:  0.04472 
+F-statistic:  1603 on 2 and 68432 DF,  p-value: < 2.2e-16
+
+summary(lm(log(nfAdj)~log(nmtr/nf)+fracGood+mod));
+             Estimate Std. Error t value Pr(>|t|)    
+(Intercept)   2.38380    0.04733  50.361   <2e-16 ***
+log(nmtr/nf) -0.69883    0.01401 -49.883   <2e-16 ***
+fracGood      1.37391    0.04436  30.972   <2e-16 ***
+modblock     -1.85767    0.10857 -17.111   <2e-16 ***
+modcrypto     0.07779    0.18579   0.419    0.675    
+moddrivers   -1.48536    0.01887 -78.697   <2e-16 ***
+modfs        -0.47257    0.03301 -14.315   <2e-16 ***
+modkernel    -2.02932    0.05379 -37.728   <2e-16 ***
+modmm        -2.82273    0.07290 -38.720   <2e-16 ***
+modnet       -0.45905    0.03385 -13.562   <2e-16 ***
+modscripts   -1.48949    0.07081 -21.035   <2e-16 ***
+modsecurity  -0.76959    0.06419 -11.990   <2e-16 ***
+modsound     -0.65671    0.04738 -13.860   <2e-16 ***
+modtools      1.09473    0.07959  13.754   <2e-16 ***
+Residual standard error: 1.785 on 68421 degrees of freedom
+Multiple R-squared:  0.1568,    Adjusted R-squared:  0.1566 
+F-statistic: 978.6 on 13 and 68421 DF,  p-value: < 2.2e-16
+
+
+
+mod = summary(lm(log(nfAdj)~log(nmtr/nf)++fracGood+mod+m));
+> mod$adj.r.squared
+[1] 0.9230451
+> mod$coefficients[1:16,];
+                    Estimate Std. Error    t value      Pr(>|t|)
+(Intercept)       2.59248127 0.09662189  26.831200 9.582004e-158
+log(nmtr/nf)     -0.41292831 0.01010671 -40.856863  0.000000e+00
+fracGood          0.31160444 0.04434634   7.026610  2.136219e-12
+modblock         -0.68274859 0.12371746  -5.518612  3.429492e-08
+modcrypto        -1.49407164 0.08441127 -17.699906  6.064146e-70
+moddrivers       -0.09775158 0.01858391  -5.260012  1.444872e-07
+modfs            -0.31194652 0.03970825  -7.855962  4.025732e-15
+modkernel        -1.33022406 0.05760740 -23.091201 1.636274e-117
+modmm            -2.43912156 0.05678037 -42.957128  0.000000e+00
+modnet           -0.19825820 0.03760038  -5.272771  1.347950e-07
+modscripts       -1.87204106 0.15025752 -12.458884  1.370130e-35
+modsecurity       0.69118459 0.10642907   6.494321  8.398981e-11
+modsound         -0.43766395 0.05549402  -7.886687  3.149680e-15
+modtools          1.41682176 0.05835664  24.278672 1.199991e-129
+
+
+#lets do ncmt and nauth
+d = read.table("delta1",sep=";",comment.char="", quote="",
+  col.names=c("m","nmtr","f","v","mod0","mod","an","ae","at","y","nadd","msg"));
+d$key = paste(d$y, d$m, sep=";");
+d$an = tolower(d$an);
+d = d[d$nmtr>0,];
+#aa = tapply(rep(1,dim(d)[1]),list(d$key, as.character(d$an)),mean);
+dat = c();
+for (y in names(table(d$y))){
+ ind = d$y==y;
+ 
+ ncmt = apply(tapply(1/d$nm[ind],list(as.character(d$m[ind]),as.character(d$v)[ind]), mean),1,sum,na.rm=T);
+ nauth = apply(tapply(1/d$nm[ind],list(as.character(d$m[ind]), as.character(d$an)[ind]),mean),1,sum,na.rm=T);
+ nmtr = apply(tapply(d$nm[ind],list(as.character(d$m[ind]), as.character(d$f)[ind]),mean),1,sum,na.rm=T);
+ nf = apply(tapply(rep(1,sum(ind)),list(as.character(d$m[ind]), as.character(d$f)[ind]),mean),1,sum,na.rm=T);
+ res = data.frame(y=rep(y,length(ncmt)));
+ res$m = names(table(as.character(d$m[ind])));
+ res$ncmt = ncmt;
+ res$nauth = nauth;
+ res$nmtr = nmtr;
+ res$nf = nf;
+ dat = rbind(dat, res);
+}
+write.table(dat, file="deltaProd.R",sep=";",quote=F,row.names=F,col.names=F);
+
+dat <- read.table("deltaProd.R",sep=";",quote="",col.names=c("y","m","ncmt","nauth","nmtr","nf"))
+dat$key=paste(dat$y,dat$m,sep=";");
+dat$mod=mod[match(dat$key,key)];
+modc <- summary(lm(log(ncmt)~log(nmtr/nf)+mod+m,data=dat));
+moda <- summary(lm(log(nauth)~log(nmtr/nf)+mod+m,data=dat));
+modc$adj.r.squared
+[1] 0.6517597
+modc$coefficients[1:16,];
+                    Estimate Std. Error      t value      Pr(>|t|)
+(Intercept)      -0.20760006 0.23574466  -0.88061406  3.785318e-01
+log(nmtr/nf)     -0.53977842 0.01790640 -30.14444479 1.624113e-197
+modblock         -0.77173682 0.74759057  -1.03229876  3.019381e-01
+modcrypto        -1.12912596 0.16869061  -6.69347237  2.206683e-11
+moddrivers        0.25195516 0.03544964   7.10740997  1.201192e-12
+modfs            -0.16550398 0.07855908  -2.10674544  3.514556e-02
+modkernel        -0.39213572 0.10986712  -3.56918177  3.584967e-04
+modmm            -0.74755699 0.10485398  -7.12950527  1.023503e-12
+modnet           -0.25792347 0.07318688  -3.52417617  4.252529e-04
+modscripts       -2.78682556 0.25931629 -10.74682037  6.648589e-27
+modsecurity       0.73310333 0.22102397   3.31684993  9.111567e-04
+modsound         -0.18391402 0.11050582  -1.66429252  9.606144e-02
+modtools          0.55704292 0.10653098   5.22892904  1.713092e-07
+mabhijit mahajan  1.17081506 0.35418810   3.30563069  9.484222e-04
+mabylay ospan     0.80080007 0.47507454   1.68563037  9.187444e-02
+macelan kao      -0.01678279 0.69547633  -0.02413137  9.807479e-01
+moda$adj.r.squared
+[1] 0.7258382
+moda$coefficients[1:16,];
+                    Estimate Std. Error     t value     Pr(>|t|)
+(Intercept)      -0.46948418 0.16188343  -2.9001374 3.731924e-03
+log(nmtr/nf)     -0.59165814 0.01229614 -48.1173940 0.000000e+00
+modblock         -0.76066276 0.51336273  -1.4817257 1.384208e-01
+modcrypto        -0.74498907 0.11583810  -6.4312955 1.278763e-10
+moddrivers        0.26612091 0.02434291  10.9321755 8.816817e-28
+modfs            -0.18738515 0.05394571  -3.4735877 5.140663e-04
+modkernel        -0.33700155 0.07544462  -4.4668734 7.957774e-06
+modmm            -0.67584230 0.07200214  -9.3864189 6.507173e-21
+modnet           -0.13430698 0.05025668  -2.6724207 7.533523e-03
+modscripts       -2.19591609 0.17806982 -12.3317702 7.020129e-35
+modsecurity       0.67572937 0.15177488   4.4521820 8.522063e-06
+modsound         -0.28568883 0.07588321  -3.7648491 1.668764e-04
+modtools          0.30637538 0.07315372   4.1881037 2.818677e-05
+mabhijit mahajan  0.48251163 0.24321732   1.9838704 4.727678e-02
+mabylay ospan     0.54780161 0.32622878   1.6791946 9.312156e-02
+macelan kao      -0.07967774 0.47757642  -0.1668377 8.674986e-01
+
