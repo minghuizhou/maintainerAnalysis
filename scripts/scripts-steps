@@ -1,32 +1,14 @@
 
-#+begin_src sh :dir mylaptop:/data/linux
+#+begin_src sh pae:~/OSS-analysis/linuxmaintainer
 git clone git://git.kernel.org/pub/scm/linux/kernel/git/torvalds/linux.git linux
-git log --all --numstat -M -C --full-history --pretty=tformat:"STARTOFTHECOMMIT:linux%n%H;%T;%P;%an;%ae;%at;%cn;%ce;%ct;%s%n%b%nNOTES%N" | gzip > /data/linux/linux.log.gz
-gunzip -c /data/linux/linux.log.gz | perl ~/bin/extrgitPlog.perl | gzip > /data/linux/linux.delta.gz
-gunzip -c /data/linux/linux.delta.gz | grep ';MAINTAINERS;' | sort -t\; -k10 -n > /data/linux/MAINTAINERS.delta
+#sh pae:~/OSS-analysis/linuxmaintainer/linux
+git log --all --numstat -M -C --full-history --pretty=tformat:"STARTOFTHECOMMIT:linux%n%H;%T;%P;%an;%ae;%at;%cn;%ce;%ct;%s%n%b%nNOTES%N" | gzip > ../data/linux.log.gz
+#sh pae:~/OSS-analysis/linuxmaintainer
+gunzip -c data/linux.log.gz | perl bin/extrgitPlog.perl | gzip > data/linux.delta.gz
+gunzip -c data/linux.delta.gz | grep ';MAINTAINERS;' | sort -t\; -k10 -n > data/MAINTAINERS.delta
 #+end_src
 
-#+begin_src R dir: /ssh:mylaptop:/data/linux
-library(zoo);
-x = read.table("MAINTAINERS.delta",sep=";",comment.char="", quote="");
-x$V10 <- format(as.yearmon(as.POSIXct(x$V10, origin='1970-1-1')), '%Y.%m');
-x$V11 <- format(as.yearmon(as.POSIXct(x$V11, origin='1970-1-1')), '%Y.%m');
-write.table(x,file="MAINTAINERS.delta.1",sep=";", quote=F);
-#+end_src
-
-#+begin_src sh :dir /ssh:mylaptop:/data/linux/
-cut -d\; -f3,11,12 /data/shared/linux/MAINTAINERS.delta.1  | awk -F\; '{ if ($2>m) {print h";"m};h=$1;m=$2}END{print h";"m}' > /data/shared/linux/MAINTAINERS.delta.m
-cat /data/shared/linux/MAINTAINERS.delta.m | grep -v '^;$' | while IFS=\; read h m
-do git checkout --force $h
-   find . -type f | sed 's|^\./||' | grep -v '^\.git/' | gzip >  /data/MAINTAINERS.$h.$m.files.gz
-   FF=scripts/get_maintainer.pl
-   [[ -f $FF ]] && gunzip -c /data/MAINTAINERS.$h.$m.files.gz | while read f
-      do echo "$f;$m;"$($FF -f $f|perl -ane 's/;/SEMICOLON/g;s/\n/;/g;print')
-      done 
-done | gzip > /data/shared/linux/MAINTAINERS.mtr.gz 
-#+end_src
-
-#+begin_src R dir: /ssh:mylaptop:/data/linux/
+#+begin_src R dir: pae:~/OSS-analysis/linuxmaintainer/data/
 library(zoo);
 x = read.table("linux.delta.gz",sep=";",comment.char="", quote="",
 col.names=c("prj", "v","tree","parent","an","cn","ae","ce","nadd","at","ct",
@@ -37,8 +19,59 @@ x$ct <- format(as.yearmon(as.POSIXct(as.integer(x$ct), origin='1970-1-1')), '%Y.
 write.table(x[,c("f","v","an","ae","at","ct","nadd","msg")],"delta",sep=";", quote=F, row.names=F,col.names=F);
 #+end_src
 
+#+begin_src R dir: pae:~/OSS-analysis/linuxmaintainer/data/
+library(zoo);
+x = read.table("MAINTAINERS.delta",sep=";",comment.char="", quote="");
+x$V10 <- format(as.yearmon(as.POSIXct(x$V10, origin='1970-1-1')), '%Y.%m');
+x$V11 <- format(as.yearmon(as.POSIXct(x$V11, origin='1970-1-1')), '%Y.%m');
+write.table(x,file="MAINTAINERS.delta.1",sep=";", quote=F);
+#+end_src
 
-#+begin_src perl dir: /ssh:mylaptop:/data/linux
+#+begin_src sh :dir pae:~/OSS-analysis/linuxmaintainer/data/
+cut -d\; -f3,11,12 MAINTAINERS.delta.1  | awk -F\; '{ if ($2>m) {print h";"m};h=$1;m=$2}END{print h";"m}' > MAINTAINERS.delta.m
+cat linux/MAINTAINERS.delta.m | grep -v '^;$' | while IFS=\; read h m
+do git checkout --force $h
+   find . -type f | sed 's|^\./||' | grep -v '^\.git/' | gzip >  MAINTAINERS.$h.$m.files.gz
+   FF=scripts/get_maintainer.pl
+   [[ -f $FF ]] && gunzip -c MAINTAINERS.$h.$m.files.gz | while read f
+      do echo "$f;$m;"$($FF -f $f|perl -ane 's/;/SEMICOLON/g;s/\n/;/g;print')
+      done 
+done | gzip > MAINTAINERS.mtr.gz 
+#+end_src
+
+#+begin_src perl dir: /pae:~/OSS-analysis/linuxmaintainer/data/
+use strict;
+use warnings;
+open A, "gunzip -c MAINTAINERS.mtr.gz|";
+open B, ">mtr1";
+while(<A>){
+  chop();
+  my ($f, $y, @m)=split(/\;/, $_, -1); 
+  my %mtr=(); 
+  for my $mt (@m){
+    my $out = 0;
+    if ($mt ne ""){
+      $out++ if $mt =~ /(maintainer|supporter):/;
+      $mt=~s/\([^\(\)]*\)\)$/\)/;
+      $mt=~s/\([^\(\)]*\)$//; 
+      $mt=~s/\> \(.*/>/;  
+      $mt=~s/\s*$//; 
+      if ($mt =~ m/[<>]/ && ($out || $y < 2011.01)){ #the maintainer:supporter start date
+        $mt =~ s/\<.*$//;
+        $mt =~ s/\s*$//;
+        $mt =~ s/\"//g;
+        $mtr{$mt}++;
+      }
+    }
+  } 
+  for my $m (keys %mtr){
+    print B "$f;$y;".(scalar (keys %mtr)).";$m\n";
+  }
+  print B "$f;$y;0;torvalds\n" if (scalar(keys %mtr) < 1 && $f ne "");
+}
+#+end_src
+
+#+begin_src perl dir: /pae:~/OSS-analysis/linuxmaintainer/data/
 use strict;
 use warnings;
 my (%mtr, %mod, %m2mod, %m2mod1, %moda, %modSC, %modSCInv);
@@ -123,7 +156,7 @@ while(<A>){
 }        
 close (B);
 
-#delta is the original commit deltas, delta1 is     
+#delta is the original commit deltas, delta1 added adjusted module (mod:has the largest #deltas at that month for maintainer m) and original module (mod0: replaced trivial modules with "other")   
 open A, "delta";
 open B, ">delta1";
 while(<A>){
@@ -144,7 +177,74 @@ while(<A>){
 
 #+end_src
 
-git clone https://github.com/minghuizhou/maintainerAnalysis
+#+begin_src R dir: /pae:~/OSS-analysis/linuxmaintainer/data/
+d = read.table("delta1",sep=";",comment.char="", quote="",
+  col.names=c("m","nm","f","v","mod0","mod","an","ae","at","ct","nadd","msg"));
+d$an = tolower(d$an);
+d <- d[d$mod0!="other",]
+d$mod0 = as.factor(as.character(d$mod0));
 
-git://git.kernel.org/pub/scm/linux/kernel/git/torvalds/linux.git linux
+mtr = read.table("mtr2",sep=";",comment.char="", quote="",
+  col.names=c("f","mod","mmod","w","ct","nm","m"));
+mtr = mtr[mtr$mod != "other",]
+mtr$mod = as.factor(as.character(mtr$mod));
+mtr$mmod = as.factor(as.character(mtr$mmod));
+mtr= mtr[!is.na(mtr$ct),]
+
+dat = c();
+for (y in names(table(mtr$ct))){
+ ind = d$ct==y;
+ i1 = mtr$ct == y;
+ dnam = paste(as.character(d$m[ind]),as.character(d$mod0[ind]), sep=";");
+ ncmt = apply(tapply(1/d$nm[ind],list(dnam, as.character(d$v[ind])),mean),c(1),sum,na.rm=T);
+ nauth = apply(tapply(1/d$nm[ind],list(dnam, as.character(d$an[ind])),mean),c(1),sum,na.rm=T);
+
+ mnam = paste(as.character(mtr$m[i1]),as.character(mtr$mod[i1]), sep=";");
+ nw = apply(tapply(mtr$w[i1],list(mnam, as.character(mtr$f[i1])),mean),c(1),mean,na.rm=T);
+ nf = apply(tapply(mtr$w[i1]/mtr$nm[i1],list(mnam, as.character(mtr$f[i1])),mean),c(1),sum,na.rm=T);
+ nm = tapply(mtr$w[i1]*mtr$nm[i1],mnam,mean,na.rm=T);
+ ny = tapply(mtr$ct[i1],mnam,first);
+ devmod =   names(table(mnam));
+  
+ res = data.frame(y=ny);
+ res$nm = nm;
+ res$nf = nf;
+ res$nw = nw;
+ res$devmod = devmod;
+ mm = match (devmod, names(table(dnam)),nomatch=0);
+ res$nauth = rep(0,dim(res)[1])
+ res$nauth[mm>0] = nauth[mm];
+ res$ncmt = rep(0,dim(res)[1])
+ res$ncmt[mm>0] = ncmt[mm];
+ dat = rbind(dat, res);
+}
+write.table(dat, file="mtrProd.R",sep=";",quote=F,row.names=F,col.names=F);
+#+end_src
+
+#+begin_src R dir: /ssh:pae:/data/linux
+#lets do ncmt and nauth
+d = read.table("delta1",sep=";",comment.char="", quote="",
+  col.names=c("m","nmtr","f","v","mod0","mod","an","ae","at","y","nadd","msg"));
+d$key = paste(d$y, d$m, sep=";");
+d$an = tolower(d$an);
+d = d[d$nmtr>0,];
+#aa = tapply(rep(1,dim(d)[1]),list(d$key, as.character(d$an)),mean);
+dat = c();
+for (y in names(table(d$y))){
+ ind = d$y==y;
+ 
+ ncmt = apply(tapply(1/d$nm[ind],list(as.character(d$m[ind]),as.character(d$v)[ind]), mean),1,sum,na.rm=T);
+ nauth = apply(tapply(1/d$nm[ind],list(as.character(d$m[ind]), as.character(d$an)[ind]),mean),1,sum,na.rm=T);
+ nmtr = apply(tapply(d$nm[ind],list(as.character(d$m[ind]), as.character(d$f)[ind]),mean),1,sum,na.rm=T);
+ nf = apply(tapply(rep(1,sum(ind)),list(as.character(d$m[ind]), as.character(d$f)[ind]),mean),1,sum,na.rm=T);
+ res = data.frame(y=rep(y,length(ncmt)));
+ res$m = names(table(as.character(d$m[ind])));
+ res$ncmt = ncmt;
+ res$nauth = nauth;
+ res$nmtr = nmtr;
+ res$nf = nf;
+ dat = rbind(dat, res);
+}
+write.table(dat, file="deltaProd.R",sep=";",quote=F,row.names=F,col.names=F);
+#+end_src
 
