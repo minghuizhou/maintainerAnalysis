@@ -28,18 +28,22 @@ write.table(x,file="MAINTAINERS.delta.1",sep=";", quote=F);
 #+end_src
 
 #+begin_src sh :dir pae:~/OSS-analysis/linuxmaintainer/data/
+# get the first commit (hash) at each month
 cut -d\; -f3,11,12 MAINTAINERS.delta.1  | awk -F\; '{ if ($2>m) {print h";"m};h=$1;m=$2}END{print h";"m}' > MAINTAINERS.delta.m
-cat linux/MAINTAINERS.delta.m | grep -v '^;$' | while IFS=\; read h m
+#sh dir pae:~/OSS-analysis/linuxmaintainer/linux/
+# get maintainers for each file at each month based on the commit (hash)
+cat ../data/MAINTAINERS.delta.m | grep -v '^;$' | while IFS=\; read h m
 do git checkout --force $h
-   find . -type f | sed 's|^\./||' | grep -v '^\.git/' | gzip >  MAINTAINERS.$h.$m.files.gz
+   find . -type f | sed 's|^\./||' | grep -v '^\.git/' | gzip >  ../data/MAINTAINERS.$h.$m.files.gz
    FF=scripts/get_maintainer.pl
-   [[ -f $FF ]] && gunzip -c MAINTAINERS.$h.$m.files.gz | while read f
+   [[ -f $FF ]] && gunzip -c ../data/MAINTAINERS.$h.$m.files.gz | while read f
       do echo "$f;$m;"$($FF -f $f|perl -ane 's/;/SEMICOLON/g;s/\n/;/g;print')
       done 
-done | gzip > MAINTAINERS.mtr.gz 
+done | gzip > ../data/MAINTAINERS.mtr.gz 
 #+end_src
 
-#+begin_src perl dir: /pae:~/OSS-analysis/linuxmaintainer/data/
+
+#+begin_src  dir:/pae:~/OSS-analysis/linuxmaintainer/data/: perl ../scripts/PRODUCEmtr1.pl
 use strict;
 use warnings;
 open A, "gunzip -c MAINTAINERS.mtr.gz|";
@@ -71,7 +75,7 @@ while(<A>){
 }
 #+end_src
 
-#+begin_src perl dir: /pae:~/OSS-analysis/linuxmaintainer/data/
+#+begin_src perl dir: /pae:~/OSS-analysis/linuxmaintainer/data/:  perl ../scripts/PRODUCEmtr2.pl
 use strict;
 use warnings;
 my (%mtr, %mod, %m2mod, %m2mod1, %moda, %modSC, %modSCInv);
@@ -174,18 +178,19 @@ while(<A>){
   my @fs = split (/\//, $f, -1);
   print B "torvalds\;0\;$f\;$v\;$mod0;$mod0;$a;$ae;$ya;$yc;".(join ';', @rest)."\n" if ($nm==0 && $f ne "")  
 }
-
 #+end_src
 
 #+begin_src R dir: /pae:~/OSS-analysis/linuxmaintainer/data/
+first = function (x)x[1];
+spread <- function(x){ length(table(as.character(x))); };
 d = read.table("delta1",sep=";",comment.char="", quote="",
-  col.names=c("m","nm","f","v","mod0","mod","an","ae","at","ct","nadd","msg"));
+  col.names=c("m","nm","f","v","mod0","mod","an","ae","at","ct","nadd","msg"),fileEncoding="latin1");
 d$an = tolower(d$an);
 d <- d[d$mod0!="other",]
 d$mod0 = as.factor(as.character(d$mod0));
 
 mtr = read.table("mtr2",sep=";",comment.char="", quote="",
-  col.names=c("f","mod","mmod","w","ct","nm","m"));
+  col.names=c("f","mod","mmod","w","ct","nm","m"),fileEncoding="latin1");
 mtr = mtr[mtr$mod != "other",]
 mtr$mod = as.factor(as.character(mtr$mod));
 mtr$mmod = as.factor(as.character(mtr$mmod));
@@ -224,7 +229,7 @@ write.table(dat, file="mtrProd.R",sep=";",quote=F,row.names=F,col.names=F);
 #+begin_src R dir: /ssh:pae:/data/linux
 #lets do ncmt and nauth
 d = read.table("delta1",sep=";",comment.char="", quote="",
-  col.names=c("m","nmtr","f","v","mod0","mod","an","ae","at","y","nadd","msg"));
+  col.names=c("m","nmtr","f","v","mod0","mod","an","ae","at","y","nadd","msg"),fileEncoding="latin1");
 d$key = paste(d$y, d$m, sep=";");
 d$an = tolower(d$an);
 d = d[d$nmtr>0,];
