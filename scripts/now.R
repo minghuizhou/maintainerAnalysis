@@ -359,7 +359,7 @@ dev.off();
 #legend(1,4000,legend=paste(nn, wf,sep="/"), lwd=3,pch=as.character(1:9),col=1:9);
 #dev.off();
 
-####### joiners by time
+########### joiners by time
 joineryMTR0 <- NA;
 joineryMTR <- NA;
 for (i in mod){
@@ -418,14 +418,15 @@ dat$key=paste(dat$y,dat$m,sep=";");
 dat$mod=mod[match(dat$key,key)];
 modc <- summary(lm(log(ncmt)~log(nmtr/nf)+mod+m,data=dat));
 moda <- summary(lm(log(nauth)~log(nmtr/nf)+mod+m,data=dat));
-modc$adj.r.squared
-[1] 0.6517597
+#modc$adj.r.squared
+#[1] 0.6517597
 write(round(modc$coefficients[1:13,],2),"workload",append=TRUE,sep=" & ");
 write(round(moda$coefficients[1:13,],2),"workload",append=TRUE,sep=" & ");
-moda$adj.r.squared
+#moda$adj.r.squared
 
 ############### one-time-contributors
 #install.packages("zoo");
+mod <- c("drivers","arch","fs","net","sound","kernel","mm");
 library(zoo);
 x = read.table("linux.delta.gz",sep=";",comment.char="", quote="",
 col.names=c("prj", "v","tree","parent","an","cn","ae","ce","nadd","at","ct",
@@ -434,7 +435,8 @@ x$at <- format(as.yearmon(as.POSIXct(as.integer(x$at), origin='1970-1-1')), '%Y.
 x$ct <- format(as.yearmon(as.POSIXct(as.integer(x$ct), origin='1970-1-1')), '%Y.%m');
 x$an = tolower(x$an);
 x$cn = tolower(x$cn);
-#write.table(x[,c("f","v","an","ae","at","ct","nadd","msg")],"delta",sep=";", quote=F, row.names=F,col.names=F);
+x = x[x$ct<=2016.12,];
+
 tmin <- tapply(as.numeric(x$ct), x$an, min, na.rm=T);
 x$fr <- tmin[match(x$an,names(tmin))];
 x$fr1 <- as.factor(x$fr);
@@ -482,7 +484,6 @@ legend(1.1,98,legend=paste(mod, wm,sep="/"), lwd=3,cex=1.5,pch=as.character(1:9)
 dev.off();
 
 ##############################################################
-
 ancmt = tapply(delta$v,delta$y,spread);
 anauth = tapply(delta$an,delta$y,spread);
 anf = tapply(mtr$f,mtr$y,spread);
