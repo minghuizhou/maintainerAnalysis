@@ -1,6 +1,5 @@
 first = function (x)x[1];
 spread <- function(x){ length(table(as.character(x))); };
-mostFrequent <- function(x){ names(sort(-table(as.character(x)))[1]); };
 
 delta = read.table("delta1",sep=";",comment.char="", quote="", col.names=c("m","nm","f","v","mod0","mod","an","ae","at","ct","nadd","msg"),fileEncoding="latin1"); #nm is nmtr, mod is adjusted module (with the largest number of deltas at that month for that maintainer), mod0 has "other" module for trivial modules like include and lib
 delta$an = tolower(delta$an);
@@ -10,6 +9,10 @@ mtr = read.table("mtr2",sep=";",comment.char="", quote="", col.names=c("f","mod0
 mtr$mod1 <- sub("/.*", "",mtr$f,perl=T,useBytes=T);
 
 dat <- read.table("mtrProd.R",sep=";",quote="",col.names=c("t","nm","nf","nw","m","mod","nauth","ncmt"))
+
+delta = delta[delta$ct<=2016.12,];
+mtr = mtr[mtr$ct<=2016.12,];
+dat = dat[dat$t<=2016.12,];
 d1 <- dat[dat$nm>0,]; 
 
 delta$mod1 <- sub("/.*", "",delta$f,perl=T,useBytes=T); #mod1 is original module
@@ -29,13 +32,7 @@ delta$t1 <- as.factor(delta$ct);
 
 d1$mt <- paste(d1$m,d1$t,sep=";");
 
-###########nf0/nauth0/acmt0 could only be calculated on pae
-#tmp <- tapply(mtr$f,mtr$mt,spread);
-#d1$nf0 <- tmp[match(d1$mt,names(tmp))];
-#tmp <- tapply(delta$an,delta$mt,spread);
-#d1$nauth0 <- tmp[match(d1$mt,names(tmp))];
-#tmp <- tapply(delta$v,delta$mt,spread);
-#d1$ncmt0 <- tmp[match(d1$mt,names(tmp))];
+mod <- c("drivers","arch","fs","net","sound","kernel","mm");#crypto and lib don't have much commits (and touched files)
 
 nf  <- tapply(d1$nf,d1$mod,mean,na.rm=T); 
 nauth  <- tapply(d1$nauth,d1$mod,mean,na.rm=T);
@@ -53,7 +50,6 @@ write(mod,"workload",append=TRUE,sep=" & ");
 ##########################
 
 d1$y1 <- as.factor(floor(as.integer(as.character(d1$t))));
-mod <- c("drivers","arch","fs","net","sound","kernel","mm");#crypto and lib don't have much commits (and touched files)
 mtr$t1 <- as.factor(mtr$ct);
 
 ############ authors by time
@@ -90,7 +86,6 @@ legend(35,25,legend=mod,lwd=3,cex=1.5,col=1:8,pch=as.character(1:9),bg="white");
 dev.off();
 
 ################# workload of a maintainer (on adjusted modules)
-
 w = c(1.5,4,1.5,1.5,3,0.3,0.1);
 tmp <- NA; for (i in mod) { tmp1 <- tapply(d1$nf[d1$mod==i],d1$y1[d1$mod==i],mean); tmp <- cbind(tmp,tmp1)}
 tmp = tmp[,2:length(tmp[1,])];
@@ -100,6 +95,7 @@ matplot(t(t(tmp)/w),lwd=4,xaxt="n",col=1:13,type="o",pch=as.character(1:9),main 
 axis(1, at = c(1,2,3,4,5,6,7,8), labels =c(2009:2016));
 legend(1.7,18,legend=paste(mod,w,sep="/"),lwd=3,cex=1.5,col=1:8,pch=as.character(1:9),bg="white");  
 dev.off();
+
 w = c(1,2,2,2,1,0.4,0.3);
 tmp <- NA; for (i in mod) { tmp1 <- tapply(d1$nf[d1$mod==i],d1$y1[d1$mod==i],median); tmp <- cbind(tmp,tmp1)}
 tmp = tmp[,2:length(tmp[1,])];
@@ -117,13 +113,14 @@ matplot(tmp[,2:length(tmp[1,])],lwd=4,col=1:12,xaxt="n",type="o",main = "(mean) 
 axis(1, at = c(1,2,3,4,5,6,7,8), labels =c(2009:2016));
 legend(1.5,2,legend=mod,lwd=3,cex=1.5,col=1:8,pch=as.character(1:9),bg="white"); 
 dev.off();
-#tmp <- NA; for (i in mod) { tmp1 <- tapply(d1$nauth[d1$mod==i],d1$y1[d1$mod==i],median,na.rm=T); tmp <- cbind(tmp,tmp1)}
-#postscript("natr8yrMEDIAN_mtrm2.eps", width=10,height=6,horizontal=FALSE, onefile=FALSE, paper = "special");
+
+tmp <- NA; for (i in mod) { tmp1 <- tapply(d1$nauth[d1$mod==i],d1$y1[d1$mod==i],median,na.rm=T); tmp <- cbind(tmp,tmp1)}
+postscript("natr8yrMEDIAN_mtrm2.eps", width=10,height=6,horizontal=FALSE, onefile=FALSE, paper = "special");
 #png("natr8yrMEDIAN_mtrm2.png", width=800,height=600);
-#matplot(tmp[,2:length(tmp[1,])],col=1:12,xaxt="n",lwd=3,type="o",main = "(median) #authors a maitainer responsible for per month for primary modules",xlab="Calendar year",ylab="(median) #authors")
-#axis(1, at = c(1,2,3,4,5,6,7,8), labels =c(2009:2016));
-#legend(1,.45,legend=mod,lwd=3,col=1:8,pch=as.character(1:9)); 
-#dev.off();
+matplot(tmp[,2:length(tmp[1,])],col=1:12,xaxt="n",lwd=4,type="o",main = "(median) #authors a maitainer responsible for per month for primary modules",xlab="Calendar year",ylab="(median) #authors")
+axis(1, at = c(1,2,3,4,5,6,7,8), labels =c(2009:2016));
+legend(1,.45,legend=mod,lwd=3,col=1:8,pch=as.character(1:9)); 
+dev.off();
 
 tmp <- NA; for (i in mod) { tmp1 <- tapply(d1$ncmt[d1$mod==i],d1$y1[d1$mod==i],mean,na.rm=T); tmp <- cbind(tmp,tmp1)}
 postscript("ncmt8yrMEAN_mtrm2.eps", width=10,height=6,horizontal=FALSE, onefile=FALSE, paper = "special");
@@ -132,42 +129,48 @@ matplot(tmp[,2:length(tmp[1,])],xaxt="n",lwd=4,col=1:12,type="o",main = "(mean) 
 axis(1, at = c(1,2,3,4,5,6,7,8), labels =c(2009:2016));
 legend(1.5,6,legend=mod,lwd=3,cex=1.5,col=1:8,pch=as.character(1:9),bg="white"); 
 dev.off();
-#tmp <- NA; for (i in mod) { tmp1 <- tapply(d1$ncmt[d1$mod==i],d1$y1[d1$mod==i],median,na.rm=T); tmp <- cbind(tmp,tmp1)}
-#postscript("ncmt8yrMEDIAN_mtrm2.eps", width=10,height=6,horizontal=FALSE, onefile=FALSE, paper = "special");
+tmp <- NA; for (i in mod) { tmp1 <- tapply(d1$ncmt[d1$mod==i],d1$y1[d1$mod==i],median,na.rm=T); tmp <- cbind(tmp,tmp1)}
+postscript("ncmt8yrMEDIAN_mtrm2.eps", width=10,height=6,horizontal=FALSE, onefile=FALSE, paper = "special");
 #png("ncmt8yrMEDIAN_mtrm2.png", width=800,height=600);
-#matplot(tmp[,2:length(tmp[1,])],col=1:12,xaxt="n",lwd=3,type="o",main = "(median) #commits a maitainer responsible for per month for primary modules",xlab="Calendar year",ylab="(median) #commits")
-#axis(1, at = c(1,2,3,4,5,6,7,8), labels =c(2009:2016));
-#legend(6,1.5,legend=mod,lwd=3,col=1:8,pch=as.character(1:9)); 
-#dev.off();
+matplot(tmp[,2:length(tmp[1,])],col=1:12,xaxt="n",lwd=4,type="o",main = "(median) #commits a maitainer responsible for per month for primary modules",xlab="Calendar year",ylab="(median) #commits")
+axis(1, at = c(1,2,3,4,5,6,7,8), labels =c(2009:2016));
+legend(6,1.5,legend=mod,lwd=3,col=1:8,pch=as.character(1:9)); 
+dev.off();
 
 #################################
 d <- delta;
 #######Fraction of changed files among maintained files -- only run at pae
-d1$nfchanged <- NA;
-for (i in unique(d1$t)){
-tmp <- tapply(d$f[d$ct==i],d$m[d$ct==i],spread);
-d1$nfchanged[d1$t==i] <- tmp[match(d1$m[d1$t==i],names(tmp))];
-}
-d1$nfchanged[d1$nf>0 & is.na(d1$nfchanged)] <- 0;
-d1$fracchgf <- d1$nfchanged/d1$nf0;
-#d1$effort <- NA;
-#d1$effort[d1$nf>0] <- 1;
+###########nf0/nauth0/acmt0 could only be calculated on pae
+#tmp <- tapply(mtr$f,mtr$mt,spread);
+#d1$nf0 <- tmp[match(d1$mt,names(tmp))];
+#tmp <- tapply(delta$an,delta$mt,spread);
+#d1$nauth0 <- tmp[match(d1$mt,names(tmp))];
+#tmp <- tapply(delta$v,delta$mt,spread);
+#d1$ncmt0 <- tmp[match(d1$mt,names(tmp))];
+
+#d1$nfchanged <- NA;
+#for (i in unique(d1$t)){
+#tmp <- tapply(d$f[d$ct==i],d$m[d$ct==i],spread);
+#d1$nfchanged[d1$t==i] <- tmp[match(d1$m[d1$t==i],names(tmp))];
+#}
+#d1$nfchanged[d1$nf>0 & is.na(d1$nfchanged)] <- 0;
+#d1$fracchgf <- d1$nfchanged/d1$nf0;
 
 #######commits on maintained files made by the maintainer
-d1$ncmt_own <- NA;
-for (i in unique(d1$t)){
-tmp <- tapply(d$v[d$ct==i&d$an==d$m],d$m[d$ct==i&d$an==d$m],spread);
-d1$ncmt_own[d1$t==i] <- tmp[match(d1$m[d1$t==i],names(tmp))];
-}
-d1$ncmt_own[is.na(d1$ncmt_own)] <- 0;
-d1$owncmtFrac <- d1$ncmt_own/d1$ncmt0;
+#d1$ncmt_own <- NA;
+#for (i in unique(d1$t)){
+#tmp <- tapply(d$v[d$ct==i&d$an==d$m],d$m[d$ct==i&d$an==d$m],spread);
+#d1$ncmt_own[d1$t==i] <- tmp[match(d1$m[d1$t==i],names(tmp))];
+#}
+#d1$ncmt_own[is.na(d1$ncmt_own)] <- 0;
+#d1$owncmtFrac <- d1$ncmt_own/d1$ncmt0;
 
-d1$njoiner <- NA;
-for (i in unique(d1$t)){
-tmp <- tapply(d$an[d$ct==i&d$fr==d$ct],d$m[d$ct==i&d$fr==d$ct],spread);
-d1$njoiner[d1$t==i] <- tmp[match(d1$m[d1$t==i],names(tmp))];
-}
-d1$fracjoiner <- d1$njoiner/d1$nauth0;
+#d1$njoiner <- NA;
+#for (i in unique(d1$t)){
+#tmp <- tapply(d$an[d$ct==i&d$fr==d$ct],d$m[d$ct==i&d$fr==d$ct],spread);
+#d1$njoiner[d1$t==i] <- tmp[match(d1$m[d1$t==i],names(tmp))];
+#}
+#d1$fracjoiner <- d1$njoiner/d1$nauth0;
 
 ###########
 #Fraction of the measures we used done by top 20\% of maintainers
@@ -201,7 +204,7 @@ nummtr <- rbind(nummtr,tmp2);
 }
 topmtr_commits <- topmtr;
 postscript("topmtr80cmt.eps", width=10,height=6,horizontal=FALSE, onefile=FALSE, paper = "special");
-#png("topmtr80cmt0.png", width=800,height=600);
+#png("topmtr80cmt.png", width=800,height=600);
 matplot((topmtr_commits/nummtr)[2:9,2:8],type="o",xaxt="n",col=1:9,lwd=4,main = "Fraction of maintainers who are responsible for 80% of commits",xlab="Calendar year",ylab="Fraction",ylim=c(0,0.8));
 axis(1, at = c(1,2,3,4,5,6,7,8), labels =c(2009:2016));
 legend(5.5,0.8,legend=mod,lwd=3,cex=1.5,col=1:8,pch=as.character(1:9),bg="white"); 
@@ -237,7 +240,7 @@ nummtr <- rbind(nummtr,tmp2);
 }
 topmtr_atr <- topmtr;
 postscript("topmtr80atr.eps", width=10,height=6,horizontal=FALSE, onefile=FALSE, paper = "special");
-#png("topmtr80atr0.png", width=800,height=600);
+#png("topmtr80atr.png", width=800,height=600);
 matplot((topmtr_atr/nummtr)[2:9,2:8],type="o",col=1:9,xaxt="n",lwd=4,main = "Fraction of maintainers who are responsible for 80% of authors",xlab="Calendar year",ylab="Fraction",ylim=c(0,0.9));
 axis(1, at = c(1,2,3,4,5,6,7,8), labels =c(2009:2016));
 legend(5.5,0.85,legend=mod,lwd=3,cex=1.5,col=1:8,pch=as.character(1:9),bg="white"); 
@@ -273,7 +276,7 @@ nummtr <- rbind(nummtr,tmp2);
 }
 topmtr_file <- topmtr;
 postscript("topmtr80file.eps", width=10,height=6,horizontal=FALSE, onefile=FALSE, paper = "special");
-#png("topmtr80file0.png", width=800,height=600);
+#png("topmtr80file.png", width=800,height=600);
 matplot((topmtr_file/nummtr)[2:9,2:8],type="o",col=1:9,xaxt="n",lwd=4,main = "Fraction of maintainers who are responsible for 80% of files",xlab="Calendar year",ylab="Fraction",ylim=c(0,0.75));
 axis(1, at = c(1,2,3,4,5,6,7,8), labels =c(2009:2016));
 legend(6,0.75,legend=mod,lwd=3,cex=1.5,col=1:8,pch=as.character(1:9),bg="white"); 
@@ -329,8 +332,8 @@ nf = apply(table(as.character(mtr$mod), as.character(mtr$y), as.character(mtr$f)
 nm0 = apply(table(as.character(mtr$mod0), as.character(mtr$y), as.character(mtr$m))>0,c(1,2),sum,na.rm=T);
 nm = apply(table(as.character(mtr$mod), as.character(mtr$y), as.character(mtr$m))>0,c(1,2),sum,na.rm=T);
 wm = c(10,3,1,1,1,.5,.4);
-#png("nmtr4mod0.png", width=800,height=600);
 postscript("nmtr4mod0.eps", width=10,height=6,horizontal=FALSE, onefile=FALSE, paper = "special");
+#png("nmtr4mod0.png", width=800,height=600);
 matplot(t(nm0[nn,]/wm),type="o",lwd=4,xaxt="n",pch=as.character(1:9),col=1:9, main="#maintainers over time",xlab="Calendar year",ylab="Number",ylim=c(1,110));
 axis(1, at = c(1,2,3,4,5,6,7,8), labels =c(2009:2016));
 legend(2,110,legend=paste(nn, wm,sep="/"), lwd=3,cex=1.5,pch=as.character(1:9),col=1:9,bg="white");
@@ -410,32 +413,6 @@ m2m$y1 <- as.factor(floor(m2m$t));
 model = summary(lm(log(nfAdj)~log(nmtr/nf)+mod+m));
 write(round(model$coefficients[1:13,],2),"workload",append=TRUE,sep=" & ");
 
-#lets do ncmt and nauth
-d = delta;
-#d = read.table("delta1",sep=";",comment.char="", quote="",
-#  col.names=c("m","nmtr","f","v","mod0","mod","an","ae","at","y","nadd","msg"));
-d$key = paste(d$ct, d$m, sep=";");
-#d$an = tolower(d$an);
-d = d[d$nm>0,];
-#aa = tapply(rep(1,dim(d)[1]),list(d$key, as.character(d$an)),mean);
-dat = c();
-for (y in names(table(d$ct))){
- ind = d$ct==y;
-
- ncmt = apply(tapply(1/d$nm[ind],list(as.character(d$m[ind]),as.character(d$v)[ind]), mean),1,sum,na.rm=T);
- nauth = apply(tapply(1/d$nm[ind],list(as.character(d$m[ind]), as.character(d$an)[ind]),mean),1,sum,na.rm=T);
- nmtr = apply(tapply(d$nm[ind],list(as.character(d$m[ind]), as.character(d$f)[ind]),mean),1,sum,na.rm=T);
- nf = apply(tapply(rep(1,sum(ind)),list(as.character(d$m[ind]), as.character(d$f)[ind]),mean),1,sum,na.rm=T);
- res = data.frame(y=rep(y,length(ncmt)));
- res$m = names(table(as.character(d$m[ind])));
- res$ncmt = ncmt;
- res$nauth = nauth;
- res$nmtr = nmtr;
- res$nf = nf;
- dat = rbind(dat, res);
-}
-write.table(dat, file="deltaProd.R",sep=";",quote=F,row.names=F,col.names=F);
-
 dat <- read.table("deltaProd.R",sep=";",quote="",col.names=c("y","m","ncmt","nauth","nmtr","nf"))
 dat$key=paste(dat$y,dat$m,sep=";");
 dat$mod=mod[match(dat$key,key)];
@@ -504,6 +481,54 @@ axis(1, at = c(1,2,3,4,5,6,7), labels =c(2009:2015));
 legend(1.1,98,legend=paste(mod, wm,sep="/"), lwd=3,cex=1.5,pch=as.character(1:9),col=1:9,bg="white");
 dev.off();
 
+##############################################################
+
+ancmt = tapply(delta$v,delta$y,spread);
+anauth = tapply(delta$an,delta$y,spread);
+anf = tapply(mtr$f,mtr$y,spread);
+anmtr = tapply(mtr$m,mtr$y,spread);
+anjoiner = tapply(delta$an,delta$fry,spread);
+
+postscript("growth.eps", width=10,height=6,horizontal=FALSE, onefile=FALSE, paper = "special");
+#png("growth.png", width=800,height=600);
+plot(ancmt/16,lwd=4,type="o",xaxt="n",pch=as.character(1),main = "Growth of Linux kernel",xlab="Calendar year",ylab="Number",ylim=c(0,4400));
+axis(1, at = c(1,2,3,4,5,6,7,8), labels =c(2009:2016));
+lines(anauth,type="o",lwd=4,col=2,pch=as.character(2));
+lines(anf/16,type="o",lwd=4,col=3,pch=as.character(3));
+lines(anmtr/0.3,type="o",lwd=4,col=4,pch=as.character(4));
+lines(anjoiner/0.7,type="o",lwd=4,col=5,pch=as.character(5));
+#commits/16(35773-70095)","#authors(2350-4008)","#joiners*1.5","#maintainers*3(598-1088)","#files/16"
+legend(5.5,2100,legend=c("#commits/16","#authors/1","#files/16","#maintainers/0.3","#joiners/0.7"),col=1:5,lwd=3,cex=1.5,pch=as.character(1:5),bg="white");  
+#legend(5.5,2100,legend=c("#commits/16","#authors/1","#files/16","#joiners*1.5"),col=1:4,lwd=3,cex=1.5,pch=as.character(1:4),bg="white");  
+dev.off();
+
+nf = tapply(d1$nf,d1$y1,mean);
+nauth = tapply(d1$nauth,d1$y1,mean);
+ncmt = tapply(d1$ncmt,d1$y1,mean);
+nfmedian = tapply(d1$nf,d1$y1,median);
+nauthmedian = tapply(d1$nauth,d1$y1,median);
+ncmtmedian = tapply(d1$ncmt,d1$y1,median);
+
+postscript("workloadgrowth.eps", width=10,height=6,horizontal=FALSE, onefile=FALSE, paper = "special");
+#png("workloadgrowth.png", width=800,height=600);
+plot(nf,lwd=4,type="o",xaxt="n",pch=as.character(1),main = "Evolution of maintainer's average workload",xlab="Calendar year",ylab="Number",ylim=c(0,40));
+axis(1, at = c(1,2,3,4,5,6,7,8), labels =c(2009:2016));
+ lines(nauth*16,type="o",lwd=4,col=2,pch=as.character(2));
+ lines(ncmt*6,type="o",lwd=4,col=3,pch=as.character(3));
+#lines(anmtr/30,type="o",lwd=4,col=4,pch=as.character(4));
+legend(1,20,legend=c("#files*1","#authors*16","#commits*6"),col=1:3,lwd=3,cex=1.5,pch=as.character(1:3),bg="white");  
+#legend(1,20,legend=c("#files/1","#authors*16","#commits*6","#maintainers/30"),col=1:3,lwd=3,cex=1.5,pch=as.character(1:3),bg="white");  
+dev.off();
+
+postscript("workloadgrowthMEDIAN.eps", width=10,height=6,horizontal=FALSE, onefile=FALSE, paper = "special");
+plot(nfmedian,lwd=4,type="o",xaxt="n",,pch=as.character(1),main = "Evolution of maintainer's median workload",xlab="Calendar year",ylab="Number",ylim=c(0,8));
+axis(1, at = c(1,2,3,4,5,6,7,8), labels =c(2009:2016));
+ lines(nauthmedian*16,type="o",lwd=4,col=2,pch=as.character(2));
+ lines(ncmtmedian*6,type="o",lwd=4,col=3,pch=as.character(3));
+legend(1,7.6,legend=c("#files*1","#authors*16","#commits*6"),col=1:3,lwd=3,cex=1.5,pch=as.character(1:3),bg="white");  
+dev.off();
+
+##################################################
 dw = mtr[,c("m","mod1","mod")];
 #dw$ismod = match(dw$mod1,mod);
 #dw$mod1[is.na(dw$ismod)] = NA;
@@ -548,9 +573,5 @@ nMtr_sup = c(195,43,12,9,6,15,0);
 nMtr = c(574,134,32,46,45,41,9);
 nF_sup = c(6215,5463,212,332,114,65,0);
 nF = c(21567,16984,1826,1742,1902,356,112);
-
-
-
-
 
 
