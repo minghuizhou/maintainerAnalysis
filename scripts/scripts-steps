@@ -1,5 +1,6 @@
 
-#+begin_src sh pae:~/OSS-analysis/linuxmaintainer
+#STEP 1: retrieve data from linux kernel main repository
+#+begin_src sh dir: pae:~/OSS-analysis/linuxmaintainer
 git clone git://git.kernel.org/pub/scm/linux/kernel/git/torvalds/linux.git linux
 #sh pae:~/OSS-analysis/linuxmaintainer/linux
 git log --all --numstat -M -C --full-history --pretty=tformat:"STARTOFTHECOMMIT:linux%n%H;%T;%P;%an;%ae;%at;%cn;%ce;%ct;%s%n%b%nNOTES%N" | gzip > ../data/linux.log.gz
@@ -8,6 +9,7 @@ gunzip -c data/linux.log.gz | perl bin/extrgitPlog.perl | gzip > data/linux.delt
 gunzip -c data/linux.delta.gz | grep ';MAINTAINERS;' | sort -t\; -k10 -n > data/MAINTAINERS.delta
 #+end_src
 
+#STEP 2: produce delta (to obtain required time format) from commits in R environment
 #+begin_src R dir: pae:~/OSS-analysis/linuxmaintainer/data/
 library(zoo);
 x = read.table("linux.delta.gz",sep=";",comment.char="", quote="",
@@ -20,15 +22,15 @@ write.table(x[,c("f","v","an","ae","at","ct","nadd","msg")],"delta",sep=";", quo
 #+end_src
 
 #+begin_src R dir: pae:~/OSS-analysis/linuxmaintainer/data/
-library(zoo);
 x = read.table("MAINTAINERS.delta",sep=";",comment.char="", quote="");
 x$V10 <- format(as.yearmon(as.POSIXct(x$V10, origin='1970-1-1')), '%Y.%m');
 x$V11 <- format(as.yearmon(as.POSIXct(x$V11, origin='1970-1-1')), '%Y.%m');
 write.table(x,file="MAINTAINERS.delta.1",sep=";", quote=F);
 #+end_src
 
-#+begin_src sh :dir pae:~/OSS-analysis/linuxmaintainer/data/
-# get the first commit (hash) at each month
+#STEP 3: produce MAINTAINERS.mtr.gz (to obtain maintainers for each file at each month) from maintainer history
+#+begin_src sh dir: pae:~/OSS-analysis/linuxmaintainer/data/
+# get the first commit (hash) for each month
 cut -d\; -f3,11,12 MAINTAINERS.delta.1  | awk -F\; '{ if ($2>m) {print h";"m};h=$1;m=$2}END{print h";"m}' > MAINTAINERS.delta.m
 #sh dir pae:~/OSS-analysis/linuxmaintainer/linux/
 # get maintainers for each file at each month based on the commit (hash)
@@ -42,8 +44,8 @@ do git checkout --force $h
 done | gzip > ../data/MAINTAINERS.mtr.gz 
 #+end_src
 
-
-#+begin_src  dir:/pae:~/OSS-analysis/linuxmaintainer/data/: perl ../scripts/PRODUCEmtr1.pl
+#STEP 4: produce mtr1 for later analysis 
+#+begin_src perl dir: pae:~/OSS-analysis/linuxmaintainer/data/: perl ../scripts/PRODUCEmtr1.pl
 use strict;
 use warnings;
 open A, "gunzip -c MAINTAINERS.mtr.gz|";
@@ -75,6 +77,7 @@ while(<A>){
 }
 #+end_src
 
+#STEP 5: produce mtr2 and delta1 (added adjusted module)
 #+begin_src perl dir: /pae:~/OSS-analysis/linuxmaintainer/data/:  perl ../scripts/PRODUCEmtr2.pl
 use strict;
 use warnings;
@@ -161,6 +164,7 @@ while(<A>){
 close (B);
 
 #delta is the original commit deltas, delta1 added adjusted module (mod:has the largest #deltas at that month for maintainer m) and original module (mod0: replaced trivial modules with "other")   
+# 
 open A, "delta";
 open B, ">delta1";
 while(<A>){
@@ -180,6 +184,7 @@ while(<A>){
 }
 #+end_src
 
+#STEP 6: produce mtrProd.R and deltaProd.R in R environment
 #+begin_src R dir: /pae:~/OSS-analysis/linuxmaintainer/data/
 first = function (x)x[1];
 spread <- function(x){ length(table(as.character(x))); };
@@ -253,3 +258,4 @@ for (y in names(table(d$y))){
 write.table(dat, file="deltaProd.R",sep=";",quote=F,row.names=F,col.names=F);
 #+end_src
 
+#STEP 7: RUN now.R dir: /pae:~/OSS-analysis/linuxmaintainer/data/: Rscript now.r
